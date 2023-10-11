@@ -1,12 +1,14 @@
 cmake_minimum_required(VERSION 3.7)
 
-project(argon2-gpu CXX)
+project(xengpuminer CXX)
 set(BINARY_INSTALL_DIR /usr/local/bin)
 set(LIBRARY_INSTALL_DIR /usr/local/lib)
 set(INCLUDE_INSTALL_DIR /usr/local/include)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR})
+set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
+
 if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++11")
 endif()
@@ -44,7 +46,7 @@ endif()
 
 add_subdirectory(gpuMiner/ext/argon2)
 
-add_library(argon2-gpu-common SHARED
+add_library(argon2-gpu-common STATIC
 gpuMiner/lib/argon2-gpu-common/argon2params.cpp
 gpuMiner/lib/argon2-gpu-common/blake2b.cpp
 )
@@ -58,7 +60,7 @@ ${CMAKE_CURRENT_SOURCE_DIR}/gpuMiner/lib/argon2-gpu-common
 )
 
 if(CUDA_FOUND)
-    cuda_add_library(argon2-cuda SHARED
+    cuda_add_library(argon2-cuda STATIC
     gpuMiner/lib/argon2-cuda/cudaexception.cpp
     gpuMiner/lib/argon2-cuda/device.cpp
     gpuMiner/lib/argon2-cuda/globalcontext.cpp
@@ -82,7 +84,7 @@ target_include_directories(argon2-cuda INTERFACE
 )
 target_link_libraries(argon2-cuda argon2-gpu-common)
 
-add_library(argon2-opencl SHARED
+add_library(argon2-opencl STATIC
 gpuMiner/lib/argon2-opencl/device.cpp
 gpuMiner/lib/argon2-opencl/globalcontext.cpp
 gpuMiner/lib/argon2-opencl/kernelloader.cpp
@@ -99,21 +101,7 @@ gpuMiner/include/argon2-opencl
 gpuMiner/lib/argon2-opencl
 )
 
-if (UNIX AND NOT APPLE)
-    target_link_libraries(argon2-opencl
-        argon2-gpu-common -lOpenCL
-    )
-endif()
-if (APPLE)
-    target_link_libraries(argon2-opencl
-        argon2-gpu-common "-framework OpenCL"
-    )
-endif()
-if (WIN32)
-    target_link_libraries(argon2-opencl
-        argon2-gpu-common OpenCL.lib
-    )
-endif()
+find_package(OpenCL REQUIRED)
 
 add_executable(xengpuminer
 gpuMiner/src/argon2-gpu-bench/cpuexecutive.cpp
@@ -124,7 +112,7 @@ gpuMiner/src/argon2-gpu-bench/main.cpp
 )
 target_include_directories(xengpuminer PRIVATE gpuMiner/src/argon2-gpu-bench)
 target_link_libraries(xengpuminer
-    argon2-cuda argon2-opencl argon2 -lOpenCL
+    argon2-cuda argon2-opencl argon2 OpenCL::OpenCL
 )
 
 install(
@@ -153,3 +141,11 @@ install(
     TARGETS xengpuminer
     DESTINATION ${BINARY_INSTALL_DIR}
 )
+
+include(InstallRequiredSystemLibraries)
+set(CPACK_GENERATOR "DEB")
+set(CPACK_PACKAGE_VERSION_MAJOR "1")
+set(CPACK_PACKAGE_VERSION_MINOR "0")
+set(CPACK_PACKAGE_VERSION_PATCH "0")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Woody")
+include(CPack)
